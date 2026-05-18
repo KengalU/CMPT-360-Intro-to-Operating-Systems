@@ -108,9 +108,22 @@ int parse_args(int argc, char** argv, sim_cfg_t* cfg, const char** in_path)
     return 0;
 }
 
-/* TODO: read "PID ARRIVAL CPU_TIME", ignore lines starting with '#', validate:
-   pid>=0, arrival>=0, cpu>0. Sort by (arrival, pid). Return 0 on success.
+static int job_sort(const void *a, const void *b)
+/*
+    Purpose: Comparison function for qsort to sort job_t's by arrival time, then PID
+    Params: a and b - pointers to job_t's to compare
+    Return: negative if a < b, 0 if a == b, positive if a > b (for sorting in ascending order)
 */
+{
+    // Cast void* to job_t* to access fields for comparison
+    const job_t *a_job = (const job_t *) a;
+    const job_t *b_job = (const job_t *) b;
+
+    // Sort by arrival time first, if arrival times are equal, sort by PID
+    if (a_job->arrival != b_job->arrival) return a_job->arrival - b_job->arrival; // sort by arrival time
+    return a_job->pid - b_job->pid; // if arrival times are equal, sort by PID
+}
+
 int load_workload(const char* path, job_t** jobs, int* n)
 /*
     Purpose: Read a workload file and populate a dyn array of jobs
@@ -124,11 +137,12 @@ int load_workload(const char* path, job_t** jobs, int* n)
     FILE *fp = fopen(path, "r");
     if (fp == NULL) {perror("Error opening file"); return 1;}
 
-    // Read line by line
-    char line[BUFFER];
-    *jobs = NULL; // initialize array to store jobs
-    *n = 0;
+    // Initialize variables
+    char line[BUFFER]; // buffer to hold each line read from file
+    *jobs = NULL; // pointer to array of job_t's
+    *n = 0; // number of jobs
 
+    // Read line by line
     while (fgets(line, BUFFER, fp))
     {
         if (line[0] == '#' || line[0] == '\n') continue; // skip headers and blank lines in file
@@ -172,18 +186,20 @@ int load_workload(const char* path, job_t** jobs, int* n)
         }
         *jobs = new_arr; // update *jobs to point to newly resized array, incase realloc moved it to a new location
 
-        // Fill in job struct with values
+        // Fill in new job_t instance with values and increment job count
         (*jobs)[*n].pid = pid;
         (*jobs)[*n].arrival = arrival;
         (*jobs)[*n].cpu_time = cpu_time;
         (*n)++; // increment job count
-
-        // Sort jobs by arrival time, then PID
-
     }
+
+    // Use qsort to sort jobs by arrival time, then PID
+    qsort(*jobs, *n, sizeof(job_t), job_sort);
     fclose(fp);
     return 0;
 }
+
+
 
 /* TODO: discrete-time CPU simulation with FIFO ready queue.
    FCFS: never preempt. RR: quantum countdown; when it hits 0 and job not finished, enqueue at tail.
