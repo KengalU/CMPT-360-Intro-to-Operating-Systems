@@ -201,18 +201,6 @@ int load_workload(const char* path, job_t** jobs, int* n)
     return 0;
 }
 
-/* TODO: discrete-time CPU simulation with FIFO ready queue.
-   FCFS: never preempt. RR: quantum countdown; when it hits 0 and job not finished, enqueue at tail.
-   Track: first run (first time scheduled) and completion (t+1 on finish).
-   Build timeline run[t]=pid or -1 (idle). After finishing:
-     - ctx = count PID->PID changes (ignore idle)
-     - TAT = completion-arrival; RESP = first run-arrival
-   Print exactly:
-     time: 0 1 2 ... T-1
-     run : <pid or -> per tick
-     Pk: first run=... completion=... TAT=... RESP=...
-     System: ctx_switches=..., avgTAT=..., avgRESP=...
-*/
 int simulate(const job_t* jobs, int n, const sim_cfg_t* cfg, sim_metrics_t* out)
 /*
     Purpose: Simulate execution of jobs on a single CPU with given scheduling policy and quantum (if RR)
@@ -223,6 +211,8 @@ int simulate(const job_t* jobs, int n, const sim_cfg_t* cfg, sim_metrics_t* out)
     Return: 0 on success, 1 on error
 */
 {
+    (void) cfg; // placeholder to avoid unused parameter warning, remove when cfg is used for RR scheduling
+
     // Initialize arrays to track job states
     int *time_remaining = malloc(n * sizeof(int)); // array to track remaining CPU time for each job
     bool *in_queue = malloc(n * sizeof(bool)); // array to track if job is in ready queue
@@ -271,7 +261,7 @@ int simulate(const job_t* jobs, int n, const sim_cfg_t* cfg, sim_metrics_t* out)
         // Queue jobs that arrive at t
         for (int i = 0; i < n; i++) // check all jobs to see if they arrive at current time t
         {
-            if (jobs[i].arrival == t && !in_queue[i])
+            if (jobs[i].arrival <= t && !in_queue[i])
             {
                 queue[tail] = i; // queue job at end of queue
                 in_queue[i] = true;
@@ -319,6 +309,60 @@ int simulate(const job_t* jobs, int n, const sim_cfg_t* cfg, sim_metrics_t* out)
         t++;
     }
 
+    // Calculate metrics
+    int ctx_switches = 0;
+    double avgTAT = 0;
+    double avgRESP = 0; 
+    int prev = -1;
+    int tat = 0;
+    int total_tat = 0;
+    int resp = 0;
+    int total_resp = 0;
+
+    // Count context switches
+    for (int i = 0; i < t; i++)
+    {
+        if (timeline[i] >= 0 && prev >= 0 && timeline[i] != prev) ctx_switches++;
+        if (timeline[i] >= 0) prev = timeline[i]; // prev is now one tick behind current tick
+    }
+
+    // Print results
+    printf("time: ");
+    for (int i = 0; i < t; i++) printf("%d ", i);
+    printf("\n");
+
+    printf("run: ");
+    for (int i = 0; i < t; i++)
+    {
+        if (timeline[i] == -1) printf(" -");
+        else printf(" %d", timeline[i]);
+    }
+    printf("\n");
+
+    for (int i = 0; i < n; i++)
+    {
+        // Compute TAT
+        tat = completion[i] - jobs[i].arrival;
+        total_tat += tat;
+
+        // Compute RESP
+        resp = first_run[i] - jobs[i].arrival;
+        total_resp += resp;
+        printf("P%d: first run=%d completion=%d TAT=%d RESP=%d\n", jobs[i].pid, first_run[i], completion[i], tat, resp);
+    }
+
+    avgTAT = (double)total_tat / n;
+    avgRESP = (double)total_resp / n;
+
+    printf("System: ctx_switches=%d, avgTAT=%0.3f, avgRESP=%0.3f\n", ctx_switches, avgTAT, avgRESP);
+    
+    // Fill in metric struct
+    out->context_switches = ctx_switches;
+    out->avg_tat = avgTAT;
+    out->avg_resp = avgRESP;
+
+    free(timeline); free(time_remaining); free(in_queue); free(queue); free(first_run); free(completion);
+    return 0;
 }
 
 int main(int argc, char** argv)
