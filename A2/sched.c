@@ -261,7 +261,7 @@ int simulate(const job_t* jobs, int n, const sim_cfg_t* cfg, sim_metrics_t* out)
         // Queue jobs that arrive at t
         for (int i = 0; i < n; i++) // check all jobs to see if they arrive at current time t
         {
-            if (jobs[i].arrival <= t && !in_queue[i])
+            if (jobs[i].arrival == t && !in_queue[i])
             {
                 queue[tail] = i; // queue job at end of queue
                 in_queue[i] = true;
@@ -301,7 +301,7 @@ int simulate(const job_t* jobs, int n, const sim_cfg_t* cfg, sim_metrics_t* out)
             time_remaining[curr]--; // decrement a unit of CPU time from the current job
             if (time_remaining[curr] == 0) // if the job is completed
             {
-                completion[curr] = t + 1;
+                completion[curr] = t + 1; // one past the last tick the process ran
                 curr = -1; // re-idle CPU
                 jobs_completed++;
             }
