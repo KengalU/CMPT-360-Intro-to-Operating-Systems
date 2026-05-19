@@ -15,7 +15,7 @@ LDFLAGS :=
 VALGRIND ?= valgrind
 VGFLAGS ?= --leak-check=full --show-leak-kinds=all --track-origins=yes --errors-for-leak-kinds=all --error-exitcode=1
 
-.PHONY: all clean valgrind vg
+.PHONY: all clean checkfcfs checkrr valgrind vg
 
 all: sched 
 
@@ -25,17 +25,25 @@ sched: sched.o
 sched.o: sched.c sched.h
 	$(CC) $(CFLAGS) -c $<
 
-check: sched
+checkfcfs: sched
 	./sched --policy=FCFS --in=W1.txt
-	./sched --policy=FCFS --quantum=2 --in=W2.txt
+	./sched --policy=FCFS --in=W2.txt
+	./sched --policy=FCFS --in=W3.txt
+
+checkrr: sched
+	./sched --policy=RR --quantum=2 --in=W1.txt
+	./sched --policy=RR --quantum=2 --in=W2.txt
 	./sched --policy=RR --quantum=2 --in=W3.txt
 
 valgrind: valgrindfcfs valgrindsrr
 
 valgrindfcfs: sched
 	$(VALGRIND) $(VGFLAGS) ./sched --policy=FCFS --in=W1.txt
-	$(VALGRIND) $(VGFLAGS) ./sched --policy=FCFS --quantum=2 --in=W2.txt
+	$(VALGRIND) $(VGFLAGS) ./sched --policy=FCFS --in=W2.txt
+	$(VALGRIND) $(VGFLAGS) ./sched --policy=FCFS --in=W3.txt
 valgrindsrr: sched
+	$(VALGRIND) $(VGFLAGS) ./sched --policy=RR --quantum=2 --in=W1.txt
+	$(VALGRIND) $(VGFLAGS) ./sched --policy=RR --quantum=2 --in=W2.txt
 	$(VALGRIND) $(VGFLAGS) ./sched --policy=RR --quantum=2 --in=W3.txt
 
 vg: valgrind
