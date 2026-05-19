@@ -242,6 +242,7 @@ int simulate(const job_t* jobs, int n, const sim_cfg_t* cfg, sim_metrics_t* out)
     if (!time_remaining || !in_queue || !queue || !first_run || !completion)
     {
         fprintf(stderr, "Memory Error: Allocation Failed.");
+        free(time_remaining); free(in_queue); free(queue); free(first_run); free(completion);
         return 1;
     }
 
@@ -255,7 +256,14 @@ int simulate(const job_t* jobs, int n, const sim_cfg_t* cfg, sim_metrics_t* out)
     }
 
     // Set up timeline array to keep track of which job is running at each time tick
-
+    int timeline_size = 32; // will grow as needed
+    int *timeline = malloc(timeline_size * sizeof(int)); // array to track which job is running at each time tick (store PID or -1 for idle)
+    if (!timeline)    
+    {
+        fprintf(stderr, "Memory Error: Allocation Failed.");
+        free(time_remaining); free(in_queue); free(queue); free(first_run); free(completion); free(timeline);
+        return 1;
+    }
 
     // Main simulation loop
     while (jobs_completed < n)
@@ -279,12 +287,42 @@ int simulate(const job_t* jobs, int n, const sim_cfg_t* cfg, sim_metrics_t* out)
             if (first_run[curr] == -1) first_run[curr] = t; // record first run
         }
 
-        // Update Timeline
+        // Update Timeline if needed 
+        if (t >= timeline_size) // if the number of ticks exceed the timeline array size then resize the array
+        {
+            timeline_size *= 2;
+            int *new_timeline = realloc(timeline, timeline_size * sizeof(int));
+            if (!new_timeline)
+            {
+                fprintf(stderr, "Memory Error: Allocation Failed.");
+                free(time_remaining); free(in_queue); free(queue); free(first_run); free(completion); free(timeline);
+                return 1;
+            }
+            timeline = new_timeline; // sync timeline pointer to new array
+        }
+
+        // Fill in current tick with pid or -1 for idle
+        if (curr == -1) timeline[t] = -1; // if no job is scheduled, mark timeline as idle
+        else timeline[t] = jobs[curr].pid; // otherwise, mark timeline with PID of scheduled job
+        
+        // Run the tick
+        if (curr != -1) // if a job is scheduled
+        {
+            time_remaining[curr]--; // decrement a unit of CPU time from the current job
+            if (time_remaining[curr] == 0) // if the job is completed
+            {
+                completion[curr] = t + 1;
+                curr = -1; // re-idle CPU
+                jobs_completed++;
+            }
+        }
+        t++;
     }
 
 }
 
-int main(int argc, char** argv){
+int main(int argc, char** argv)
+{
     sim_cfg_t cfg; const char* in_path=NULL;
     int pr = parse_args(argc, argv, &cfg, &in_path);
     if (pr != 0) return 1;
