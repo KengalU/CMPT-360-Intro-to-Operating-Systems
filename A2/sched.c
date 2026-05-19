@@ -254,6 +254,9 @@ int simulate(const job_t* jobs, int n, const sim_cfg_t* cfg, sim_metrics_t* out)
         first_run[i] = -1; // placeholder int
     }
 
+    // Set up timeline array to keep track of which job is running at each time tick
+
+
     // Main simulation loop
     while (jobs_completed < n)
     {
@@ -275,6 +278,8 @@ int simulate(const job_t* jobs, int n, const sim_cfg_t* cfg, sim_metrics_t* out)
             head++;
             if (first_run[curr] == -1) first_run[curr] = t; // record first run
         }
+
+        // Update Timeline
     }
 
 }
